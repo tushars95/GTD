@@ -1,0 +1,312 @@
+---
+title: "GTD"
+author: "Tushar Singh"
+date: "6 September 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+gtd12to15= read.csv('gtd_12to15_52134.csv')
+gtd70to91= read.csv('gtd_70to91_49566.csv')
+gtd92to11= read.csv('gtd_92to11_no 93_55072.csv')
+gtd1993= read.csv('gtd1993_748.csv')
+a=merge(gtd12to15,gtd70to91,all=TRUE)
+b=merge(gtd92to11,gtd1993,all=TRUE)
+GTD=merge(a,b,all=TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(readxl)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(plotly)
+library(tidyr)
+library(graphics)
+library(ggridges)
+```
+
+
+
+Q1) Number of Attacks per year ?
+```{r}
+Q1=GTD%>%group_by(iyear)%>%summarise(`No Of Attacks`=sum(iyear=n()))
+# Plot
+theme_set(theme_grey())
+aa=ggplot(Q1,aes(x=iyear,y=`No Of Attacks`))+
+  geom_area(fill='lightyellow3',col='lightyellow4',size=1)+
+  geom_point(col="goldenrod4",size=1)+
+  scale_x_continuous(breaks = seq(1970,2015,5))+
+  scale_y_continuous(breaks = seq(500,20000,1000))+
+  labs(subtitle='From 1970 to 2015',y='No Of Attacks', x='Years', title='NO OF ATTACKS PER YEAR')
+ggplotly(aa)
+```
+
+
+
+Q2) Number of bombing per year
+```{r}
+Q2=GTD%>%filter(attacktype1_txt=='Bombing/Explosion')%>%group_by(iyear)%>%summarise(`no of bombing`=sum(attacktype1_txt=n()))
+#plot
+theme_set(theme_gray())
+bb=ggplot(Q2,aes(x=iyear,y=`no of bombing`))+
+  geom_area(fill='skyblue4',col='skyblue',size=1)+
+  geom_point(col="grey27",size=1,y=Q2$`no of bombing`)+
+  labs(subtitle='Red=No Of Attacks, Blue=No Of Bombing' ,y='No Of Attacks and Bombings', x='Years', title='NO OF BOMBING PER YEAR')+
+  scale_x_continuous(breaks = seq(1970,2015,5))+
+  scale_y_continuous(breaks = seq(100,20000,1000))
+ggplotly(bb)
+```
+
+
+
+Q3) Terrorist attacks region wise per year
+```{r}
+Q3=GTD%>%filter(doubtterr==0)%>% group_by(iyear,region_txt)%>%summarise(`No Of Attack`=n())
+#plot
+we=ggplot(Q3, aes(x=region_txt, y=iyear)) + 
+  geom_point(aes(col=region_txt, size=`No Of Attack`)) +
+  geom_smooth(method=lm, se=FALSE, fullrange=TRUE)+
+  theme(legend.position="bottom")+
+  labs(title="Terrorist attacks region wise per year", 
+       y="Year", 
+       x="Region") +
+  theme(axis.text.x = element_blank())
+ggplotly(we)
+```
+
+
+
+
+Q4) Top 5 type of terror attacks per region
+```{r warning=FALSE}
+Q4=GTD%>%filter(doubtterr==0)%>%group_by(region_txt,attacktype1_txt)%>%
+  summarise(no_of_attacks=sum(attacktype1_txt=n()))%>%
+  arrange(region_txt,-no_of_attacks)%>%top_n(5)
+ggplot(Q4,aes(x=attacktype1_txt,y=no_of_attacks))+
+  geom_bar(stat = "Identity",width = .5, aes(fill =attacktype1_txt))+
+  theme(legend.title = element_blank())+
+  theme(legend.position = "bottom", legend.key.width = unit(.2, "cm"))+
+  labs(subtitle='From 1970 to 2015',y='No Of Attacks', x='Region', title='Top 5 type of terror attacks per region')+
+  theme_bw() + facet_wrap(~region_txt, scales="free",ncol=3)+
+  theme(legend.title = element_blank())+
+  theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())
+```
+
+
+
+5) Heaviest hit Target types (Based on both Killed and wounded)
+```{r}
+Q5=GTD%>% group_by(targtype1_txt)%>%
+  summarise(`Heaviest hit Target types`=sum(round(sum(nkill, na.rm = TRUE)),round(sum(nwound, na.rm=TRUE))))%>%
+arrange(-`Heaviest hit Target types`)%>%head(10)
+
+ff=ggplot(Q5,aes(x=reorder(targtype1_txt,-`Heaviest hit Target types`),y=`Heaviest hit Target types`))+
+  geom_bar(aes(fill=targtype1_txt),stat = "Identity",width=.9)+
+  theme(legend.position = "bottom", legend.key.width = unit(2, "cm"))+
+  theme_bw()+
+  theme(legend.title = element_blank())+
+  scale_y_continuous(breaks = seq(10000,300000,50000))+
+  theme(axis.text.x=element_blank(),axis.ticks.x = element_blank())+
+  labs(subtitle='From 1970 to 2015',y='Total Casualities', x='Target Type', title='Heaviest hit Target types (Based on both Killed and wounded)')
+ggplotly(ff)
+```
+
+
+
+6) Terrorist attack in India and Pakistan in last 45 years
+```{r}
+Q6=GTD%>%group_by(country_txt, iyear)%>%filter(country_txt=='Pakistan'|country_txt=='India', doubtterr==0) %>% 
+ filter(iyear>(max(GTD$iyear, na.rm = T)-45))%>%summarise(Year_wise=n()) %>%arrange(-Year_wise) %>%
+ggplot(aes(x=iyear, y=Year_wise, fill=country_txt))+
+geom_area(position = 'stack', alpha=.99)+geom_line()+theme_dark()+
+scale_x_continuous(breaks = seq(1971,2015,5))+
+scale_fill_manual(values = c("#E7B800","#00AFBB"))+
+geom_point(aes(x=iyear))+
+facet_grid(~country_txt)+
+labs(title="IND Vs PAK TERROR-ATTACKS",subtitle="1970-2015", x="YEAR WISE",y="ATTACKS",fill="COUNTRIES")
+ggplotly(Q6)
+```
+
+
+
+
+Q7. Terror attack in United States vs Russian Federation/USSR in last 45 years?
+```{r}
+Q7=GTD%>%filter(doubtterr==0 & (country_txt=="United States" | country_txt=="Russia"|country_txt=="Soviet Union"))%>%group_by(iyear,country_txt)%>%summarise(`No Of Attacks`=sum(iyear=n()))%>%arrange(`No Of Attacks`)
+Q7$country_txt <- as.character(Q7$country_txt)
+Q7$country_txt[Q7$country_txt=="Soviet Union"] = "Russia/Soviet Union"
+Q7$country_txt[Q7$country_txt=="Russia"] = "Russia/Soviet Union"
+Q7$country_txt <- as.character(Q7$country_txt)
+
+Q7_1=Q7%>%group_by(iyear,country_txt)%>%summarise(total=sum(`No Of Attacks`))
+View(Q7_1)
+
+
+hh=ggplot(Q7_1,aes(x=iyear,y=total))+
+  geom_bar(stat = 'identity',aes(fill=country_txt,width = .5))+
+  theme_bw() +
+  labs(subtitle='From 1970 to 2015',y='No Of Attacks', x='Country', title='Terror attack in United States vs Russian Federation/USSR in last 45 years')
+
+ggplotly(hh)
+```
+
+
+
+
+Q8. Where are there the most casualties ?
+```{r}
+Q8=GTD%>%group_by(country_txt)%>%summarise(`No Of Casuality`=round(sum(sum(nkill,na.rm=T),sum(nwound,na.rm=T))))%>%arrange(-`No Of Casuality`)%>%head(10)
+View(Q8)
+
+ii=ggplot(Q8,aes(x=reorder(country_txt,-`No Of Casuality`),y=`No Of Casuality`))+
+geom_bar(stat="Identity",aes(fill =country_txt),width = .40)+
+geom_text(aes(label = `No Of Casuality`),vjust = -0.25)+
+theme_bw()+  
+theme(axis.text.x = element_blank())+
+theme(legend.position = "bottom",legend.title = element_blank())+
+theme(legend.text = element_text(colour = 'black', size = 8,face = 'bold'))+
+  labs(subtitle='From 1970 to 2015',y='No Of Casualities', x='Year', title='Where are there the most casualties')
+ggplotly(ii)
+```
+
+
+
+
+Q9.How have casualties evolved throughout the years?
+```{r}
+Q9=GTD%>%group_by(iyear)%>%summarise(`Total Kills`=round(sum(nkill,na.rm=T)),`Total Wounded`=round(sum(nwound,na.rm=T)),`Total Casualities`=`Total Kills`+`Total Wounded`)
+
+View(Q9)
+
+jj=ggplot(Q9,aes(x=iyear))+
+  #geom_line(stat="Identity")+
+  geom_line(aes(y=Q9$`Total Kills`),col='red',size=1)+
+  geom_line(aes(y=Q9$`Total Wounded`),col='blue',size=1)+
+  labs(subtitle='Kills=Red  Wounded=Blue',y='No Of Casualities', x='Year', title='How have casualties evolved throughout the years')+
+  theme_bw()+  
+  theme(axis.text.x = element_text())+
+  theme(legend.position = " ")+
+  scale_x_continuous(breaks = seq(1970,2015,5))+
+  scale_y_continuous(breaks = seq(80,44000,5000))+
+  geom_point(aes(y=Q9$`Total Kills`),col='Black',size=1)+
+  geom_point(aes(y=Q9$`Total Wounded`),col='black',size=1)+
+  theme(legend.text = element_text(colour = 'black', size = 8,face = 'bold'))
+ggplotly(jj)
+```
+
+
+Q10. What are the casualties by weapon type?
+```{r}
+Q10=GTD%>%group_by(weaptype1_txt)%>%
+  summarise(`No Of Casuality`=round(sum(sum(nkill,na.rm=T),sum(nwound,na.rm=T))))
+
+View(Q10)
+
+ggplot(Q10,aes(x=reorder(weaptype1_txt,-`No Of Casuality`),y=`No Of Casuality`))+
+  geom_bar(aes(fill=weaptype1_txt),stat="Identity",width=(.9))+
+  geom_text(aes(label=`No Of Casuality`),vjust = -0.25)+
+  theme(legend.position = "bottom", legend.key.width = unit(0.5, "cm"),legend.title = element_blank())+
+  scale_y_continuous(breaks = seq(0,500000,50000))+
+  theme(axis.text.x = element_blank())+
+  labs(subtitle='From 1970 to 2015',y='Total Casualities', x='Target Type', title='Casualties by weapon')
+```
+
+
+
+
+Q11. Are certain nationalities more targeted? If yes, which one ?
+```{r}
+Q11=GTD%>%filter(natlty1_txt!='.')%>% group_by(natlty1_txt)%>%summarise(most.targated=n())%>%arrange(-most.targated)%>%head(10)
+View(Q11)
+
+ll=ggplot(Q11,aes(x=reorder(natlty1_txt,-most.targated),y=most.targated))+
+  geom_bar(aes(fill=natlty1_txt),stat="Identity",width=(.9))+
+  theme(legend.position = "bottom", legend.key.width = unit(0.7, "cm"))+
+  scale_y_continuous(breaks = seq(3000,18000,5000))+
+  theme(axis.text.x = element_text(angle = -45))+
+  geom_text(aes(label=most.targated),vjust = -0.25)+
+  theme(axis.text.x = element_blank(),legend.title = element_blank())+
+  labs(subtitle='From 1970 to 2015',y='Most Targeted', x='Nationality', title='nationalities more targeted')
+
+ggplotly(ll)
+```
+
+
+
+
+Q12. Are some countries better at defending themselves against terrorist attacks?If yes, which is the safest country to live
+
+```{r}
+#success proportion 
+total_attack = GTD %>% group_by(country_txt) %>% summarise(totalattack = n())%>%arrange(-totalattack)%>% head(30)
+number_defend = GTD %>%filter(success == 0) %>%  group_by(country_txt) %>% summarise(count = n())
+
+merge_table3 = merge(x = number_defend,y = total_attack)
+
+defend_prop = merge_table3 %>% group_by(country_txt) %>% summarise(prop = round(count/totalattack,3))%>% 
+  arrange(-prop)
+
+View(defend_prop)
+
+temp1tab=merge(total_attack,defend_prop)%>%arrange(-prop)%>%head(10)
+View(temp1tab)####4
+ggplotly(ggplot(temp1tab,aes(x=reorder(country_txt,-prop),y=prop))+
+           geom_bar(stat="identity",aes(fill=country_txt))+
+           labs(title='Sucesses rate in defending attacks')+
+           theme(axis.text.x = element_blank(),legend.title = element_blank()))
+```
+
+```{r}
+## lower number of extended attacks
+## proportion between total attacks and extended attacks
+
+extended_attack = GTD %>%  filter(extended == 1) %>% group_by(country_txt) %>% summarise(count = n()) %>%
+  arrange(-count)
+total_attack = GTD %>% group_by(country_txt) %>% summarise(totalattack = n())%>%arrange(-totalattack)%>% head(30)
+
+merge_table1 = merge(total_attack,extended_attack)
+
+prop_extended_attack = merge_table1%>% group_by(country_txt) %>%
+  summarise(prop = round(count/totalattack,3)) %>% arrange(-prop) %>% tail(10)
+mergetab3 = merge(prop_extended_attack,total_attack) %>% arrange(-totalattack)####
+View(mergetab3)
+
+ggplotly(ggplot(mergetab3,aes(x=reorder(country_txt,prop),y=prop))+geom_bar(stat="identity",aes(fill=country_txt))+
+           labs(title='Attacks Extended Less')+
+           theme(axis.text.x = element_blank(),legend.title = element_blank()))
+```
+
+
+
+```{r}
+#proportion of kidnap and rescued:
+
+number_kidnap = GTD %>% filter(ishostkid == 1) %>% filter(nhostkid != -99)%>% filter(nreleased != -99)%>%
+  group_by(country_txt) %>% summarise(total_kidnap = sum(nhostkid)) %>% arrange(-total_kidnap)
+
+View(number_kidnap)
+
+number_release = GTD %>% filter(ishostkid == 1) %>% filter(nhostkid != -99) %>% filter(nreleased != -99) %>%
+  group_by(country_txt)%>%summarise(total_release = sum(nreleased)) 
+
+merge_table2 = merge(x = number_kidnap,y= number_release) %>% group_by(country_txt) %>% 
+  summarise(prop.rescued = round(total_release/total_kidnap,3)) %>%  arrange(-prop.rescued)%>% 
+  head(10)
+
+View(merge_table2)
+
+mergetable2=merge(total_attack,merge_table2)####
+View(mergetable2)
+ggplotly(ggplot(mergetable2,aes(x=reorder(country_txt,-prop.rescued),y=prop.rescued))+
+           geom_bar(stat="identity",aes(fill=country_txt))+
+           labs(title='Kidnapped and Rescued prop')+
+           theme(axis.text.x = element_blank(),legend.title = element_blank()))
+```
+
+
+
+
